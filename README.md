@@ -25,11 +25,13 @@ Avsluta developmentservern med `Ctrl-c`.
 
 För att köra en maskininlärningsmodell i webbläsaren kommer vi att behöva ett javascriptbibliotek som heter `onnxruntime-web`.
 Biblioteket används för att deserialisera och köra `.onnx` modeller som är ett vanligt filformat för att spara tränade modeller.
+
+Vi använder npm för att installera biblioteket lokalt till det här projektet:
 ```bash
 npm install onnxruntime-web
 ```
 
-Vi måste nu kopiera vår exempelbild och `.onnx` modellen som vi hämtade i förberedelse-steget till `public/example_image.jpg` respektive `public/model.onnx`;
+Vi måste nu kopiera vår exempelbild och `.onnx` modellen som vi hämtade i förberedelse-steget till `public/example_image.jpg` respektive `public/model.onnx`.
 Detta gör att development-servern automatiskt servar dessa filer statiskt.
 
 Vi börjar med ett enkelt UI med en rubrik, bilden som vi vill köra modellen på samt en knapp för att köra modellen.
@@ -66,9 +68,9 @@ Modellen som vi kommer att köra förväntar sig ett visst format på indatan. M
 2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
 3. Ta bort alpha kanalen.
 4. Konvertera bilden till en array av flyttal (Float32Array).
-5. Normalisera indatan så att pixelintensiteterna ligger mellan 0.0 - 1.0.
+5. Normalisera indatan så att pixelintensiteterna ligger mellan 0.0 - 1.0 istället för 0-255.
 
-Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3*224*224`.
+Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3 * 224 * 224 = 150528`.
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
@@ -94,11 +96,17 @@ Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
   ...
   <img ... onLoad={preprocess}/>
 ```
-Detaljerna är inte jätteviktiga här, men vi skapar en canvas och ritar bilden - skalad - på canvasen för att sedan läsa ut pixeldatan och ta bort alpha-kanalen. Sedan använder vi en ännu ej implementerad funktion `remove_alpha` för att ta bort alpha-kanalen.
-Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitars tal till en array med flyttal som modellen accepterar. I samma veva normaliserar vi datan genom att dela alla element i arrayen med 255.0.
+Detaljerna är inte jätteviktiga här, men vi skapar en canvas och ritar bilden - skalad - på canvasen för att kunna läsa ut pixeldatan med `getImageData`. 
+
+Sedan använder vi en funktion `remove_alpha` för att ta bort alpha-kanalen.
+
+Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. 
+
+I samma veva normaliserar vi datan genom att dela alla element i arrayen med 255.0.
+
 Sist men inte minst sparar vi resultatet i react statet via `set_preprocessed`.
 
-Vi måste nu implementera funktionen `remove_alpha`. Detta gör vi som en global funktion:
+Vi måste nu implementera funktionen `remove_alpha`. Detta gör vi som en global funktion (utanför `App()`):
 ```typescript
 const remove_alpha = (array: Uint8ClampedArray) => {
   const result = new Uint8ClampedArray(array.length / 4 * 3);
@@ -110,33 +118,35 @@ const remove_alpha = (array: Uint8ClampedArray) => {
   return result;
 }
 ```
-Pixeldatan som vi får ut från `getImageData` är en `Uint8ClampedArray` med row-first pixeldata där varje pixel består av fyra element - en för varje färg inklusive Alpha.
+Pixeldatan som vi får ut från `getImageData` är en `Uint8ClampedArray` med row-first pixeldata där varje pixel består av fyra element - en för varje färg, och ett alphaelement som representerar transparensen hos pixeln.
 För att ta bort alpha kanalen skapar vi helt enkelt en ny array med den förväntade storleken och fyller den genom att iterera genom varje pixel och skippa den sista kanalen.
 
-# Estimeringssteget
+# Använda modellen
 I det här steget kommer vi att:
-1. Deserialisera en färdigtränad modell
+1. Deserialisera en färdigtränad modell från vår `model.onnx` fil.
 2. Skapa en så kallad Tensor (en onnx-typ som beskriver en n-dimensionell array) från vår indata.
 3. Applicera modellen på tensorn.
 
-Vi vill göra åldersestimeringen när användaren trycker på "Estimate Age"-knappen. Därför skapar vi en ny funktion och lägger till den som handler till knappens `onClick` event.
+Vi vill göra åldersestimeringen när användaren trycker på "Estimate Age"-knappen.
+Därför skapar vi en ny funktion och lägger till den som handler till knappens `onClick` event.
 ```typescript 
 const estimate_age = async () => {}
 ...
     <button id="estimate_age" type="button" onClick={estimate_age}> Estimate Age </button>
 ```
+Vi markerar funktionen med `async` för att kunna använda `await` för att vänta på deserialiseringen och körningen av modellen med onnxruntime som är asynkrona anrop.
 
 Det första vi vill göra i `estimate_age` är att deserialisera modellen. Detta gör vi med ett anrop till `InferenceSession.create(..)`:
 ```typescript 
 const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl']});
 ```
 
-Nästa steg är att skapa en så kallad `Tensor` från vår indata. Här måste vi också specificera formen på tensorn eftersom vår indata är en enkel Float array 
+Nästa steg är att skapa en så kallad `Tensor` från vår indata. En tensor är en multidimensionell array (till exmpel en bild) som onnx-modellen accepterar som indata. Här måste vi också specificera formen på tensorn eftersom vår indata är en enkel Float array 
 utan storleksinformation.
 ```typescript
 const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
 ```
-Den första ettan i det andra argumentet kan verka lite konstig, men den representerar faktumet att vi endast vill utföra estimeringen på en bild och inte en lista med bilder.
+Den första ettan i det andra argumentet kan verka lite konstig, men den representerar faktumet att vi endast vill utföra estimeringen på en bild och inte en lista med bilder. Trean representerar tre kanalerna R, G och B och de två sista elementen i listan är y respektive x dimensionerna i bilden.
 
 Nu kan vi applicera modellen på tensorn och få ut ett resultat:
 ```typescript 
@@ -205,7 +215,7 @@ Om vi startar testservern igen (`npm start`) och klickar på "Estimate Age" knap
 
 # Fortsättningsideer
 - Det är fullt möjligt att köra modellen på resultatet från en kameraström, eller låta användaren välja bild från sitt filsystem.
-- Nu laddas och deserialiseras modellen varje gång användaren trycker på "Estimate Age". Detta är inte nödvändigt, utan det bör göras när sidan laddar.
+- Nu laddas och deserialiseras modellen varje gång användaren trycker på "Estimate Age". Detta är inte nödvändigt, utan det bör göras direkt när sidan laddar.
 - På [https://github.com/onnx/models/tree/main](https://github.com/onnx/models/tree/main) finns en uppsjö av andra intressanta modeller i .onnx format som kan testas.
 - Med bibliotek som PyTorch eller Tensorflow kan du träna egna modeller och exportera till .onnx. Dessa modeller går utmärkt att använda på samma sätt som vi gjort i det här exemplet.
 - Man skulle kunna visualisera resultatet snyggare. Till exempel kan man presentera sannorlikheterna för olika intervall i en "bar chart".
