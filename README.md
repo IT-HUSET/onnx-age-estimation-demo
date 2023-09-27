@@ -37,6 +37,9 @@ Detta gör att development-servern automatiskt servar dessa filer statiskt.
 Vi börjar med ett enkelt UI med en rubrik, bilden som vi vill köra modellen på samt en knapp för att köra modellen.
 Vi öppnar filen `src/App.tsx` och byter ut innehållet med:
 ```react-typescript
+import { InferenceSession, Tensor } from "onnxruntime-web";
+import { useRef, useState } from "react";
+
 function App() {
   return (
     <div>
@@ -50,6 +53,7 @@ function App() {
 
 export default App;
 ```
+De två första raderna importerar funktioner som vi kommer att behöva framöver.
 För att komma åt bilden programmatiskt använder vi en så kallad ref-hook. Det är för att vi ska kunna hämta bildens innehåll till modellen.
 Vi måste också sätta `crossOrigin` attributet på bildtaggen för att få browsern att låta oss använda bildens innehåll.
 
@@ -68,9 +72,11 @@ Modellen som vi kommer att köra förväntar sig ett visst format på indatan. M
 2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
 3. Ta bort alpha kanalen.
 4. Konvertera bilden till en array av flyttal (Float32Array).
-5. Normalisera indatan så att pixelintensiteterna ligger mellan 0.0 - 1.0 istället för 0-255.
+5. Konvertera bilden från  "interleaved"-rgb format till "planar"-rgb format. I interleaved formatet är pixeldatan strukturerad så att var tredje element tillhör samma kanal. En 2x2 bild har alltså den underliggande datastrukturen
+`RGBRGBRGBRGB`. Vi måste konvertera formatet så att varje kanal ligger för sig. För 2x2 exemplet blir det alltså `RRRRGGGGBBBB`. 
+6. Subtrahera en normaliseringskonstant från varje pixel för att matcha formatet som modellen tränades med. I vårt fall måste vi subtrahera varje pixelintensitet med `120`.
 
-Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3 * 224 * 224 = 150528`.
+Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3 * 224 * 224 = 150528` med pixlarna representerade i planarformat.
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
@@ -83,31 +89,43 @@ Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
     canvas.width = 224;
     canvas.height = 224;
 
-    // Draw scaled image to canvas
+    // 1. Skala om bilden till 224x224
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
 
-    // Extract pixel data from canvas
+    // 2. Plocka ut pixeldatan från vårt canvas-element
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+    // 3. Ta bort alphakanalen
     const without_alpha = remove_alpha(array);
-    const normalized = Float32Array.from(without_alpha, x => x / 255);
-    set_preprocessed(normalized);
+
+    // 4. och 5. Konvertera till flyttalsarray och subtrahera 120
+    const f32array = Float32Array.from(without_alpha, x => x - 120);
+
+    // 6. Konvertera till planar-format
+    const channel_separated = separate_channels(f32array);
+
+    set_preprocessed(channel_separated);
   }
   ...
   <img ... onLoad={preprocess}/>
 ```
 Detaljerna är inte jätteviktiga här, men vi skapar en canvas och ritar bilden - skalad - på canvasen för att kunna läsa ut pixeldatan med `getImageData`. 
 
-Sedan använder vi en funktion `remove_alpha` för att ta bort alpha-kanalen.
+Sedan använder vi funktionen `remove_alpha` för att ta bort alpha-kanalen.
 
-Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. 
+Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. I samma veva normaliserar vi datan genom att dela alla element i arrayen med 255.0.
 
-I samma veva normaliserar vi datan genom att dela alla element i arrayen med 255.0.
+Vi konverterar från interleaved till planar med `separate_channels()` funktionen som vi implementerar nedan. 
 
 Sist men inte minst sparar vi resultatet i react statet via `set_preprocessed`.
 
-Vi måste nu implementera funktionen `remove_alpha`. Detta gör vi som en global funktion (utanför `App()`):
+Vi måste nu implementera funktionerna `remove_alpha` och `separate_channels`. 
+Detta gör vi som globala funktioner (utanför `App()`):
 ```typescript
+/*
+ * Remove the alpha channel from an interleaved RGBA imagedata array.
+ */
 const remove_alpha = (array: Uint8ClampedArray) => {
   const result = new Uint8ClampedArray(array.length / 4 * 3);
   for (let i = 0; i < array.length; i += 4) {
@@ -117,9 +135,22 @@ const remove_alpha = (array: Uint8ClampedArray) => {
   }
   return result;
 }
+
+/* 
+ * Convert from interleaved RGB to planar RGB.
+ */
+const separate_channels = (array: Float32Array) => {
+  const plane_size = array.length / 3;
+  const result = new Float32Array(array.length);
+  for (let i = 0; i < plane_size; i++) {
+    result[i] = array[i * 3];
+    result[i + plane_size] = array[i * 3 + 1];
+    result[i + plane_size * 2] = array[i * 3 + 2];
+  }
+  return result;
+}
 ```
-Pixeldatan som vi får ut från `getImageData` är en `Uint8ClampedArray` med row-first pixeldata där varje pixel består av fyra element - en för varje färg, och ett alphaelement som representerar transparensen hos pixeln.
-För att ta bort alpha kanalen skapar vi helt enkelt en ny array med den förväntade storleken och fyller den genom att iterera genom varje pixel och skippa den sista kanalen.
+Båda funktionerna itererar helt enkelt igenom alla pixlar i arrayen och sparar i en ny array med den önskade strukturen.
 
 # Använda modellen
 I det här steget kommer vi att:
@@ -183,7 +214,7 @@ const age_interval = AGE_INTERVALS[highest_probability_index];
 Här måste vi hjälpa typescript genom att explicit kasta outputen till en Float32Array. Detta är bara för att hålla 
 typescript-typcheckingen glad och inget som påverkar logiken.
 
-Funktionen `argmax` returnerar indexet av det element som har störst värde:
+Funktionen `argmax` måste vi implementera själva. Den ska returnera indexet av det element som har störst värde:
 ```typescript
 const argmax = (array: Float32Array) => {
   let max = array[0];
@@ -226,16 +257,36 @@ Här finns den fullständiga lösningen med all kod för `App.tsx`:
 import { InferenceSession, Tensor } from "onnxruntime-web";
 import { useRef, useState } from "react";
 
+/*
+ * Remove the alpha channel from an interleaved RGBA imagedata array.
+ */
 const remove_alpha = (array: Uint8ClampedArray) => {
   const result = new Uint8ClampedArray(array.length / 4 * 3);
   for (let i = 0; i < array.length; i += 4) {
-    result[i / 4 * 3] = array[i];
-    result[i / 4 * 3 + 1] = array[i + 1];
-    result[i / 4 * 3 + 2] = array[i + 2];
+    result[i / 4 * 3] = array[i];         // R
+    result[i / 4 * 3 + 1] = array[i + 1]; // G
+    result[i / 4 * 3 + 2] = array[i + 2]; // B
   }
   return result;
 }
 
+/* 
+ * Convert from interleaved RGB to planar RGB.
+ */
+const separate_channels = (array: Float32Array) => {
+  const plane_size = array.length / 3;
+  const result = new Float32Array(array.length);
+  for (let i = 0; i < plane_size; i++) {
+    result[i] = array[i * 3];
+    result[i + plane_size] = array[i * 3 + 1];
+    result[i + plane_size * 2] = array[i * 3 + 2];
+  }
+  return result;
+}
+
+/*
+ * Find the index of the largest element in an array.
+ */
 const argmax = (array: Float32Array) => {
   let max = array[0];
   let max_index = 0;
@@ -257,26 +308,24 @@ function App() {
 
   const preprocess = () => {
     const canvas = document.createElement("canvas");
-
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
     canvas.width = 224;
     canvas.height = 224;
 
-    // Draw scaled image to canvas
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
-
-    // Extract pixel data from canvas
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const without_alpha = remove_alpha(array);
-    const normalized = Float32Array.from(without_alpha, x => x / 255);
-    set_preprocessed(normalized);
+    const f32array = Float32Array.from(without_alpha, x => x - 120);
+    const channel_separated = separate_channels(f32array);
+
+    set_preprocessed(channel_separated);
   }
 
 
   const estimate_age = async () => {
-    const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl'] });
+    const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
     const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
     const results = await model.run({ input: tensor });
     const output = results['loss3/loss3_Y'].data;
@@ -289,13 +338,13 @@ function App() {
   return (
     <div>
       <h1>Age Estimator</h1>
-      <img 
-        id="input_image" 
-        src="example_image.jpg" 
-        alt="example" 
-        crossOrigin="anonymous" 
-        ref={input_image} 
-        onLoad={preprocess} 
+      <img
+        id="input_image"
+        src="example_image_2.jpg"
+        alt="example"
+        crossOrigin="anonymous"
+        ref={input_image}
+        onLoad={preprocess}
       />
       <br />
       <button id="estimate_age" type="button" onClick={estimate_age}> Estimate Age </button>

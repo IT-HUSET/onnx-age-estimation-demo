@@ -1,17 +1,36 @@
 import { InferenceSession, Tensor } from "onnxruntime-web";
 import { useRef, useState } from "react";
 
-// Remove alpha channel from image
+/*
+ * Remove the alpha channel from an interleaved RGBA imagedata array.
+ */
 const remove_alpha = (array: Uint8ClampedArray) => {
   const result = new Uint8ClampedArray(array.length / 4 * 3);
   for (let i = 0; i < array.length; i += 4) {
-    result[i / 4 * 3] = array[i];
-    result[i / 4 * 3 + 1] = array[i + 1];
-    result[i / 4 * 3 + 2] = array[i + 2];
+    result[i / 4 * 3] = array[i];         // R
+    result[i / 4 * 3 + 1] = array[i + 1]; // G
+    result[i / 4 * 3 + 2] = array[i + 2]; // B
   }
   return result;
 }
 
+/* 
+ * Convert from interleaved RGB to planar RGB.
+ */
+const separate_channels = (array: Float32Array) => {
+  const plane_size = array.length / 3;
+  const result = new Float32Array(array.length);
+  for (let i = 0; i < plane_size; i++) {
+    result[i] = array[i * 3];
+    result[i + plane_size] = array[i * 3 + 1];
+    result[i + plane_size * 2] = array[i * 3 + 2];
+  }
+  return result;
+}
+
+/*
+ * Find the index of the largest element in an array.
+ */
 const argmax = (array: Float32Array) => {
   let max = array[0];
   let max_index = 0;
@@ -33,26 +52,24 @@ function App() {
 
   const preprocess = () => {
     const canvas = document.createElement("canvas");
-
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
     canvas.width = 224;
     canvas.height = 224;
 
-    // Draw scaled image to canvas
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
-
-    // Extract pixel data from canvas
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const without_alpha = remove_alpha(array);
-    const normalized = Float32Array.from(without_alpha, x => x / 255);
-    set_preprocessed(normalized);
+    const f32array = Float32Array.from(without_alpha, x => x - 120);
+    const channel_separated = separate_channels(f32array);
+
+    set_preprocessed(channel_separated);
   }
 
 
   const estimate_age = async () => {
-    const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl'] });
+    const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
     const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
     const results = await model.run({ input: tensor });
     const output = results['loss3/loss3_Y'].data;
@@ -67,7 +84,7 @@ function App() {
       <h1>Age Estimator</h1>
       <img
         id="input_image"
-        src="example_image.jpg"
+        src="example_image_2.jpg"
         alt="example"
         crossOrigin="anonymous"
         ref={input_image}
