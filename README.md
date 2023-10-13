@@ -114,7 +114,7 @@ Detaljerna är inte jätteviktiga här, men vi skapar en canvas och ritar bilden
 
 Sedan använder vi funktionen `remove_alpha` för att ta bort alpha-kanalen.
 
-Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. I samma veva normaliserar vi datan genom att dela alla element i arrayen med 255.0.
+Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. I samma veva subtraherar vi `120.0` från varje pixel för att matcha träningsdatan.
 
 Vi konverterar från interleaved till planar med `separate_channels()` funktionen som vi implementerar nedan. 
 
@@ -340,7 +340,7 @@ function App() {
       <h1>Age Estimator</h1>
       <img
         id="input_image"
-        src="example_image_2.jpg"
+        src="example_image.jpg"
         alt="example"
         crossOrigin="anonymous"
         ref={input_image}
