@@ -87,8 +87,10 @@ Skillnaden mellan interleaved RGBA och planar RGB illustreras tydligast genom et
 Här tänker vi oss att vi har en 2x2 pixlar bild som ska konverteras från RGBA interleaved till RGB planar:
 ![interleaved-vs-planar](interleaved-vs-planar.png)
 Slutresultatet är alltså att alla kanaler lagras för sig i röd-grön-blå ordning.
-Notera att vi ignorerar alphakanalen som inehåller information om hur igenomskinlig pixeln är.
+Notera att vi ignorerar alphakanalen som inehåller information om hur genomskinlig pixeln är.
 I vårt fall bryr vi oss inte om transparensen och modellen som vi använder förväntar sig endast RGB kanaler, ingen alphakanal.
+
+![RGBA-illustration](RGBA-illustration.png)
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
