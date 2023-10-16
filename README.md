@@ -73,10 +73,17 @@ const input_image = useRef<HTMLImageElement>(null);
 <img id="input_image" src="example_image.jpg" alt="example" crossOrigin="anonymous" ref={input_image}/>
 ```
 # Förprocessering av indata-bilden
+
 Modellen som vi kommer att köra förväntar sig ett visst format på indatan. Mer specifikt måste vi:
 1. Skala om bilden till 224x224 pixlar.
+
+![](rescale.png =120x100)
+
 2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
 3. Ta bort alpha kanalen som representerar pixlarnas transparens.
+
+![RGBA-illustration](RGBA-illustration.png =120x100)
+
 4. Konvertera bilden till en array av flyttal (Float32Array).
 5. Konvertera bilden från  "interleaved"-rgb format till "planar"-rgb format. I interleaved formatet är pixeldatan strukturerad så att var tredje element tillhör samma kanal. En 2x2 bild har alltså den underliggande datastrukturen
 `RGBRGBRGBRGB`. Vi måste konvertera formatet så att varje kanal ligger för sig. För 2x2 exemplet blir det alltså `RRRRGGGGBBBB`. 
@@ -89,8 +96,6 @@ Här tänker vi oss att vi har en 2x2 pixlar bild som ska konverteras från RGBA
 Slutresultatet är alltså att alla kanaler lagras för sig i röd-grön-blå ordning.
 Notera att vi ignorerar alphakanalen som inehåller information om hur genomskinlig pixeln är.
 I vårt fall bryr vi oss inte om transparensen och modellen som vi använder förväntar sig endast RGB kanaler, ingen alphakanal.
-
-![RGBA-illustration](RGBA-illustration.png)
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
