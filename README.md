@@ -77,12 +77,12 @@ const input_image = useRef<HTMLImageElement>(null);
 Modellen som vi kommer att köra förväntar sig ett visst format på indatan. Mer specifikt måste vi:
 1. Skala om bilden till 224x224 pixlar.
 
-![](rescale.png =120x100)
+![rescale-icon](rescale.png)
 
 2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
 3. Ta bort alpha kanalen som representerar pixlarnas transparens.
 
-![RGBA-illustration](RGBA-illustration.png =120x100)
+![RGBA-illustration](RGBA-illustration.png)
 
 4. Konvertera bilden till en array av flyttal (Float32Array).
 5. Konvertera bilden från  "interleaved"-rgb format till "planar"-rgb format. I interleaved formatet är pixeldatan strukturerad så att var tredje element tillhör samma kanal. En 2x2 bild har alltså den underliggande datastrukturen
