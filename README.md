@@ -31,7 +31,7 @@ Vi använder npm för att installera biblioteket lokalt till det här projektet:
 npm install onnxruntime-web
 ```
 
-Vi måste nu kopiera vår exempelbild och `.onnx` modellen som vi hämtade i förberedelse-steget till `public/example_image.jpg` respektive `public/model.onnx`.
+Vi måste nu kopiera vår exempelbild och `.onnx` modellen som vi hämtade i förberedelse-steget till `public/example_image.jpg` respektive `public/age_googlenet.onnx`.
 Detta gör att development-servern automatiskt servar dessa filer statiskt.
 
 Vi börjar med ett enkelt UI med en rubrik, bilden som vi vill köra modellen på samt en knapp för att köra modellen.
@@ -70,13 +70,17 @@ const input_image = useRef<HTMLImageElement>(null);
 Modellen som vi kommer att köra förväntar sig ett visst format på indatan. Mer specifikt måste vi:
 1. Skala om bilden till 224x224 pixlar.
 2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
-3. Ta bort alpha kanalen.
+3. Ta bort alpha kanalen som representerar pixlarnas transparens.
 4. Konvertera bilden till en array av flyttal (Float32Array).
 5. Konvertera bilden från  "interleaved"-rgb format till "planar"-rgb format. I interleaved formatet är pixeldatan strukturerad så att var tredje element tillhör samma kanal. En 2x2 bild har alltså den underliggande datastrukturen
 `RGBRGBRGBRGB`. Vi måste konvertera formatet så att varje kanal ligger för sig. För 2x2 exemplet blir det alltså `RRRRGGGGBBBB`. 
 6. Subtrahera en normaliseringskonstant från varje pixel för att matcha formatet som modellen tränades med. I vårt fall måste vi subtrahera varje pixelintensitet med `120`.
+Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3 * 224 * 224 = 150528` med pixlarna representerade i planarformat. 
 
-Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3 * 224 * 224 = 150528` med pixlarna representerade i planarformat.
+Skillnaden mellan interleaved RGBA och planar RGB illustreras tydligast genom ett exempel.
+Här tänker vi oss att vi har en 2x2 pixlar bild som ska konverteras från RGBA interleaved till RGB planar:
+![interleaved-vs-planar](interleaved-vs-planar.png)
+Slutresultatet är alltså att alla kanaler lagras för sig i röd-grön-blå ordning. 
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
@@ -154,7 +158,7 @@ Båda funktionerna itererar helt enkelt igenom alla pixlar i arrayen och sparar 
 
 # Använda modellen
 I det här steget kommer vi att:
-1. Deserialisera en färdigtränad modell från vår `model.onnx` fil.
+1. Deserialisera en färdigtränad modell från vår `age_googlenet.onnx` fil.
 2. Skapa en så kallad Tensor (en onnx-typ som beskriver en n-dimensionell array) från vår indata.
 3. Applicera modellen på tensorn.
 
@@ -169,7 +173,7 @@ Vi markerar funktionen med `async` för att kunna använda `await` för att vän
 
 Det första vi vill göra i `estimate_age` är att deserialisera modellen. Detta gör vi med ett anrop till `InferenceSession.create(..)`:
 ```typescript 
-const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl']});
+const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl']});
 ```
 
 Nästa steg är att skapa en så kallad `Tensor` från vår indata. En tensor är en multidimensionell array (till exmpel en bild) som onnx-modellen accepterar som indata. Här måste vi också specificera formen på tensorn eftersom vår indata är en enkel Float array 
@@ -325,7 +329,7 @@ function App() {
 
 
   const estimate_age = async () => {
-    const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
+    const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
     const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
     const results = await model.run({ input: tensor });
     const output = results['loss3/loss3_Y'].data;

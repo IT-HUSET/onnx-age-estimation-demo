@@ -69,7 +69,7 @@ function App() {
 
 
   const estimate_age = async () => {
-    const model = await InferenceSession.create('model.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
+    const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
     const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
     const results = await model.run({ input: tensor });
     const output = results['loss3/loss3_Y'].data;
