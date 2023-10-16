@@ -1,3 +1,9 @@
+# Målbild
+I den här labben är tanken att vi ska bygga ett system för att estimera ålder från en bild.
+Vi kommer att göra detta direkt i webbläsaren med hjälp av ett ramverk som heter `onnxruntime-web`.
+Det låter oss utföra inferens med en deep learning-modell som har förtränats för att estimera ålder. 
+![goal](goal.png)
+
 # Förberedelse:
 1. Installera npm
 2. Kör `npm install -g npx` för att installera npx
@@ -80,7 +86,9 @@ Slutresultatet av denna förprocessering kommer att vara en array av typen Float
 Skillnaden mellan interleaved RGBA och planar RGB illustreras tydligast genom ett exempel.
 Här tänker vi oss att vi har en 2x2 pixlar bild som ska konverteras från RGBA interleaved till RGB planar:
 ![interleaved-vs-planar](interleaved-vs-planar.png)
-Slutresultatet är alltså att alla kanaler lagras för sig i röd-grön-blå ordning. 
+Slutresultatet är alltså att alla kanaler lagras för sig i röd-grön-blå ordning.
+Notera att vi ignorerar alphakanalen som inehåller information om hur igenomskinlig pixeln är.
+I vårt fall bryr vi oss inte om transparensen och modellen som vi använder förväntar sig endast RGB kanaler, ingen alphakanal.
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
