@@ -321,7 +321,11 @@ Om vi startar testservern igen (`npm start`) och klickar på "Estimate Age" knap
 
 ## Transfer learning
 Om man vill lösa ett liknande problem som det inte finns någon färdigtränad modell till, kan man använda en färdigtränad modell som basmodell och bygga en egen "top" som man tränar på egen data. Detta gör man för att inte behöva samla in lika mycket egen data för det specifika problemet. Det här konceptet är ett exempel på så kallad tranfer learning och används flitigt av många modeller. Som ett exempel kan man tänka sig att man behöver en modell för att analysera ansiktsuttryck. Man skulle då kunna använda den färdigtränade åldersestimeringsmodellen som basmodell och samla in egen data med ansiktsuttryck för att träna en topmodell som estimerar ansiktsuttryck. På det sättet slipper man samla in den extrema mängden data som annars krävs för att träna den här typen av stora modeller. 
+
 ![transfer-learning](media/transfer-learning.png)
+
+# Slutsats
+![what-did-we-learn](media/what-did-we-learn.png)
 
 # Hela källkoden för `App.tsx`
 Här finns den fullständiga lösningen med all kod för `App.tsx`:
