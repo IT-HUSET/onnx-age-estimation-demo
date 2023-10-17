@@ -227,7 +227,7 @@ Det första vi vill göra i `estimate_age` är att deserialisera modellen. Detta
 ```typescript 
 const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl']});
 ```
-När vi skapar en `InferenceSession` måste vi specifisera en eller flera så kallade `executionProviders`. Här har vi några olika alternativ som representerar vilken backend onnx kommer att använda för att snabba upp inferensen. Onnx stödjer flera backends, bland annat `webasm` för icke-accelererad inferens och `webgl`. För att utnyttja GPU acceleration när vi anropar modellen använder vi `webgl` som vår `executionProvider`.
+När vi skapar en `InferenceSession` måste vi specifisera en eller flera så kallade `executionProviders`. Här har vi några olika alternativ som representerar vilken backend onnx kommer att använda för att snabba upp inferensen. Onnx stödjer flera backends, bland annat `wasm` för icke-accelererad inferens och `webgl`. För att utnyttja GPU acceleration när vi anropar modellen använder vi `webgl` som vår `executionProvider`.
 
 Nästa steg är att skapa en tensor från vår indata. Eftersom vi har representerat bilden som en vanig array av flyttal måste vi inkludera informationen om tensorns dimensioner när vi skapar den.
 ```typescript
