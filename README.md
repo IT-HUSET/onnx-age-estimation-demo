@@ -21,7 +21,7 @@ Annars kan vi inte räkna med att få ett korrekt resultat från modellen.
 <br/>
 När vi är klara med förprocesseringen deserialiserar vi modellen, anropar den med vår indata och presenterar resultatet.
 
-# Förberedelse:
+# Förberedelser
 1. Installera npm
 2. Kör `npm install -g npx` för att installera npx
 3. Hitta och ladda ner en testbild på en person du vill åldersbestämma.
