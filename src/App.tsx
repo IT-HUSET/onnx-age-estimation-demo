@@ -47,6 +47,8 @@ const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53',
 
 // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
 const TRAINING_INPUT_DATA_MEAN = 120.0; 
+const INPUT_WIDH = 224;
+const INPUT_HEIGHT = 224;
 
 function App() {
   const input_image = useRef<HTMLImageElement>(null);
@@ -59,11 +61,11 @@ function App() {
 
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
-    canvas.width = 224;
-    canvas.height = 224;
+    canvas.width = INPUT_WIDH;
+    canvas.height = INPUT_HEIGHT;
 
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
+    ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, INPUT_WIDH, INPUT_HEIGHT);
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const without_alpha = remove_alpha(array);
     const f32array = Float32Array.from(without_alpha, x => x - TRAINING_INPUT_DATA_MEAN);
@@ -73,7 +75,7 @@ function App() {
 
   const estimate_age = async () => {
     const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
-    const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
+    const tensor = new Tensor(preprocessed!, [1, 3, INPUT_HEIGHT, INPUT_WIDH]);
     const results = await model.run({ input: tensor });
     const output = results['loss3/loss3_Y'].data;
 

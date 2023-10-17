@@ -122,6 +122,8 @@ Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
   // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
   const TRAINING_INPUT_DATA_MEAN = 120.0; 
+  const INPUT_WIDTH = 224;
+  const INPUT_HEIGHT = 224;
 
   const [preprocessed, set_preprocessed] = useState<Float32Array>();
   const preprocess = () => {
@@ -129,12 +131,12 @@ Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
-    canvas.width = 224;
-    canvas.height = 224;
+    canvas.width = INPUT_WIDTH;
+    canvas.height = INPUT_HEIGHT;
 
     // 1. Skala om bilden till 224x224
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
+    ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, INPUT_WIDTH, INPUT_HEIGHT);
 
     // 2. Plocka ut pixeldatan från vårt canvas-element
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -229,7 +231,7 @@ När vi skapar en `InferenceSession` måste vi specifisera en eller flera så ka
 
 Nästa steg är att skapa en tensor från vår indata. Eftersom vi har representerat bilden som en vanig array av flyttal måste vi inkludera informationen om tensorns dimensioner när vi skapar den.
 ```typescript
-const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
+const tensor = new Tensor(preprocessed!, [1, 3, INPUT_HEIGHT, INPUT_WIDTH]);
 ```
 Den första ettan i det andra argumentet kan verka lite konstig, men den representerar faktumet att vi endast vill utföra estimeringen på en bild och inte en lista med bilder. Trean representerar tre kanalerna R, G och B och de två sista elementen i listan är y respektive x dimensionerna i bilden. Vi har med andra ord en 4D-tensor där det första dimmensionen är antalet bilder vi vill utföra inferens på.
 
@@ -373,6 +375,8 @@ const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53',
 
 // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
 const TRAINING_INPUT_DATA_MEAN = 120.0; 
+const INPUT_WIDTH = 224;
+const INPUT_HEIGHT = 224;
 
 function App() {
   const input_image = useRef<HTMLImageElement>(null);
@@ -385,11 +389,11 @@ function App() {
 
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
-    canvas.width = 224;
-    canvas.height = 224;
+    canvas.width = INPUT_WIDTH;
+    canvas.height = INPUT_HEIGHT;
 
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
+    ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, INPUT_WIDTH, INPUT_HEIGHT);
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const without_alpha = remove_alpha(array);
     const f32array = Float32Array.from(without_alpha, x => x - TRAINING_INPUT_DATA_MEAN);
@@ -399,7 +403,7 @@ function App() {
 
   const estimate_age = async () => {
     const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
-    const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
+    const tensor = new Tensor(preprocessed!, [1, 3, INPUT_HEIGHT, INPUT_WIDTH]);
     const results = await model.run({ input: tensor });
     const output = results['loss3/loss3_Y'].data;
 
