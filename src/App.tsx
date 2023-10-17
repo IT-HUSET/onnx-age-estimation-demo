@@ -17,7 +17,7 @@ const remove_alpha = (array: Uint8ClampedArray) => {
 /* 
  * Convert from interleaved RGB to planar RGB.
  */
-const separate_channels = (array: Float32Array) => {
+const interleaved_to_planear = (array: Float32Array) => {
   const plane_size = array.length / 3;
   const result = new Float32Array(array.length);
   for (let i = 0; i < plane_size; i++) {
@@ -45,13 +45,18 @@ const argmax = (array: Float32Array) => {
 
 const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53', '60-100'];
 
+// Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
+const TRAINING_INPUT_DATA_MEAN = 120.0; 
+
 function App() {
   const input_image = useRef<HTMLImageElement>(null);
   const [preprocessed, set_preprocessed] = useState<Float32Array>();
   const [estimated_age, set_estimated_age] = useState<string>();
 
+
   const preprocess = () => {
     const canvas = document.createElement("canvas");
+
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
     canvas.width = 224;
@@ -61,12 +66,10 @@ function App() {
     ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const without_alpha = remove_alpha(array);
-    const f32array = Float32Array.from(without_alpha, x => x - 120);
-    const channel_separated = separate_channels(f32array);
-
+    const f32array = Float32Array.from(without_alpha, x => x - TRAINING_INPUT_DATA_MEAN);
+    const channel_separated = interleaved_to_planear(f32array);
     set_preprocessed(channel_separated);
   }
-
 
   const estimate_age = async () => {
     const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
@@ -84,7 +87,7 @@ function App() {
       <h1>Age Estimator</h1>
       <img
         id="input_image"
-        src="example_image_2.jpg"
+        src="example_image.jpg"
         alt="example"
         crossOrigin="anonymous"
         ref={input_image}
