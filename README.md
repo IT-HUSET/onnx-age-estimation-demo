@@ -4,6 +4,12 @@ Vi kommer att göra detta direkt i webbläsaren med hjälp av ett ramverk som he
 Det låter oss utföra inferens med en deep learning-modell som har förtränats för att estimera ålder. 
 ![goal](goal.png)
 
+Den största delen av labben kommer att gå ut på att manipulera indatabilden i ett förprocesseringssteg.
+Eftersom modellen vi använder har blivit tränat på en viss typ av bilder (storlek, pixelintensitet, bildformat, motivets position, etc)
+är det extremt viktigt att se till att den data vi skickar in matchar detta så nära som det går. 
+Annars kan vi inte räkna med att få ett korrekt resultat från modellen.
+![preprocessing](preprocessing-pipeline.png)
+
 # Förberedelse:
 1. Installera npm
 2. Kör `npm install -g npx` för att installera npx
@@ -87,7 +93,8 @@ Modellen som vi kommer att köra förväntar sig ett visst format på indatan. M
 4. Konvertera bilden till en array av flyttal (Float32Array).
 5. Konvertera bilden från  "interleaved"-rgb format till "planar"-rgb format. I interleaved formatet är pixeldatan strukturerad så att var tredje element tillhör samma kanal. En 2x2 bild har alltså den underliggande datastrukturen
 `RGBRGBRGBRGB`. Vi måste konvertera formatet så att varje kanal ligger för sig. För 2x2 exemplet blir det alltså `RRRRGGGGBBBB`. 
-6. Subtrahera en normaliseringskonstant från varje pixel för att matcha formatet som modellen tränades med. I vårt fall måste vi subtrahera varje pixelintensitet med `120`.
+6. Subtrahera en normaliseringskonstant från varje pixel för att matcha formatet som modellen tränades med. I vårt fall måste vi subtrahera varje pixelintensitet med `120`. När modellen som vi använder oss av tränades normaliserades indatabilderna genom att subtrahera medelvärdet av pixelintensiteten innan träningen skedde. Detta är ett vanligt steg när man tränar modeller och görst för att stabilisera träningsprocessen. Om du är intresserad av varför detta är nödvändigt rekommenderar jag att läsa igenom den [här](https://scikit-learn.org/stable/auto_examples/preprocessing/plot_scaling_importance.html#importance-of-feature-scaling) artikeln. I vårt fall finns det beskrivet i modellens dokumentation hur datan har förprocesserats innan träning. [https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender](https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender).
+
 Slutresultatet av denna förprocessering kommer att vara en array av typen Float32Array med storleken `3 * 224 * 224 = 150528` med pixlarna representerade i planarformat. 
 
 Skillnaden mellan interleaved RGBA och planar RGB illustreras tydligast genom ett exempel.
@@ -99,6 +106,9 @@ I vårt fall bryr vi oss inte om transparensen och modellen som vi använder fö
 
 Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
 ```typescript
+  // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
+  const TRAINING_INPUT_DATA_MEAN = 120.0; 
+
   const [preprocessed, set_preprocessed] = useState<Uint8ClampedArray>();
   const preprocess = () => {
     const canvas = document.createElement("canvas");
@@ -118,11 +128,11 @@ Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
     // 3. Ta bort alphakanalen
     const without_alpha = remove_alpha(array);
 
-    // 4. och 5. Konvertera till flyttalsarray och subtrahera 120
-    const f32array = Float32Array.from(without_alpha, x => x - 120);
+    // 4. och 5. Konvertera till flyttalsarray och subtrahera medelvärdet av träningsdatan
+    const f32array = Float32Array.from(without_alpha, x => x - TRAINING_INPUT_DATA_MEAN);
 
     // 6. Konvertera till planar-format
-    const channel_separated = separate_channels(f32array);
+    const channel_separated = interleaved_to_planear(f32array);
 
     set_preprocessed(channel_separated);
   }
@@ -135,11 +145,11 @@ Sedan använder vi funktionen `remove_alpha` för att ta bort alpha-kanalen.
 
 Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. I samma veva subtraherar vi `120.0` från varje pixel för att matcha träningsdatan.
 
-Vi konverterar från interleaved till planar med `separate_channels()` funktionen som vi implementerar nedan. 
+Vi konverterar från interleaved till planar med `interleaved_to_planear()` funktionen som vi implementerar nedan. 
 
 Sist men inte minst sparar vi resultatet i react statet via `set_preprocessed`.
 
-Vi måste nu implementera funktionerna `remove_alpha` och `separate_channels`. 
+Vi måste nu implementera funktionerna `remove_alpha` och `interleaved_to_planear`. 
 Detta gör vi som globala funktioner (utanför `App()`):
 ```typescript
 /*
@@ -158,7 +168,7 @@ const remove_alpha = (array: Uint8ClampedArray) => {
 /* 
  * Convert from interleaved RGB to planar RGB.
  */
-const separate_channels = (array: Float32Array) => {
+const interleaved_to_planear = (array: Float32Array) => {
   const plane_size = array.length / 3;
   const result = new Float32Array(array.length);
   for (let i = 0; i < plane_size; i++) {
@@ -171,11 +181,20 @@ const separate_channels = (array: Float32Array) => {
 ```
 Båda funktionerna itererar helt enkelt igenom alla pixlar i arrayen och sparar i en ny array med den önskade strukturen.
 
-# Använda modellen
+# Använda modellen (Inferens)
+Nu har vi äntligen kommit så långt att vi kan anropa modellen på vår bild. Detta steg kallas för inferens och går ut på att skicka vår förprocesserade data till modellen och få ut ett resultat.
+
 I det här steget kommer vi att:
 1. Deserialisera en färdigtränad modell från vår `age_googlenet.onnx` fil.
-2. Skapa en så kallad Tensor (en onnx-typ som beskriver en n-dimensionell array) från vår indata.
-3. Applicera modellen på tensorn.
+2. Skapa en Tensor från vår indata med rätt dimensioner.
+3. Applicera modellen på den skapade tensorn.
+
+## Vad är en Tensor?
+![tensors](tensors.png)
+Många maskininlärningsmodeller opererar på en datatyp som kallas tensorer. 
+En tensor är egentligen inget mer än en multidimensionell array som är optimerad för att snabbt kunna manipuleras av maskininlärningsmodeller.
+Ett exempel på en tvådimensionell tensor är en matris och vår RGB bild råkar vara en tredimensionell tensor.
+De tre dimensionerna i vår tensor är bildens höjd, bredd och kanaler.
 
 Vi vill göra åldersestimeringen när användaren trycker på "Estimate Age"-knappen.
 Därför skapar vi en ny funktion och lägger till den som handler till knappens `onClick` event.
@@ -190,8 +209,9 @@ Det första vi vill göra i `estimate_age` är att deserialisera modellen. Detta
 ```typescript 
 const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl']});
 ```
+När vi skapar en `InferenceSession` måste vi specifisera en eller flera så kallade `executionProviders`. Här har vi några olika alternativ som representerar vilken backend onnx kommer att använda för att snabba upp inferensen. Onnx stödjer flera backends, bland annat `webasm`, `webgl` och `webgpu`. För att utnyttja GPU acceleration när vi anropar modellen använder vi `webgl` som vår `executionProvider`.
 
-Nästa steg är att skapa en så kallad `Tensor` från vår indata. En tensor är en multidimensionell array (till exmpel en bild) som onnx-modellen accepterar som indata. Här måste vi också specificera formen på tensorn eftersom vår indata är en enkel Float array 
+Nästa steg är att skapa en tensor från vår indata. Eftersom vi har representerat bilden som en vanig array av flyttal måste vi inkludera informationen om tensorns dimensioner när vi skapar den.
 utan storleksinformation.
 ```typescript
 const tensor = new Tensor(preprocessed!, [1, 3, 224, 224]);
@@ -207,25 +227,36 @@ console.log(output);
 `loss3/loss3_Y` är en referens till utdatalagret i modellfilen och motsvarar en output för modellen. Om du använder andra modeller måste du se till att du 
 specificerar rätt output här.
 
-Om vi nu testar att köra projektet med `npm start` och klickar på "Estimate Age" så ska vi om allt gått rätt få ut en lista med sannorlikheter 
+Om vi nu testar att köra projektet med `npm start` och klickar på "Estimate Age" så ska vi om allt gått rätt få ut en lista med sannolikheter 
 i browserterminalen. I mitt fall får jag ut:
 ```
 Float32Array(8) [ 0.007054295856505632, 0.014829231426119804, 0.08670540153980255, 0.03400164470076561, 0.7336888313293457, 0.0609135702252388, 0.053118083626031876, 0.00968888122588396 ]
 ```
-Här representerar varje element sannorlikheten för ett visst åldersintervall. Vi kan se att det femte intervallet (index 4) har högst sannorlikhet 
-enligt modellen. Detta motsvarar åldersintervallet 25-32 år enligt modellens dokumentation.
+## Tolkning av resultatet
+Något som kan verka konstigt är att en modell som estimerar ålder svarar med en lista av tal istället för bara en siffra.
+Förklaringen till det är att modellen inte är helt säker i sin estimering, utan svarar med en sannolikhetsdistribution över åldersintervallen.
+Detta är ett resultat av hur modellen är tränad. I vårt fall har modellen tränats att klassificera indatan i ett av åtta åldersintervall.
+Då kommer modellen att returnera en lista med sannorlikheter för de olika intervallen. Hur vi väljer att presentera resultatet är upp till oss.
+Ett sätt hade varit att rita ut sannolikheterna i ett histogram.
+
+![histogram](histogram.png)
+
+Man kan också tänka sig att man vill se till att bara presentera resultat när modellen är tillräckligt säker och returnera ett felmeddelande om sannolikheten 
+för något intervall inte överstiger ett tröskelvärde.
+
+För att göra det enkelt för oss kommer vi att returnera det intervall som har högst sannolikhet enligt modellen utan att ta hänsyn till det egentliga sannolikhetsvärdet.
 
 # Presentation av resultatet
-Ny återstår bara att presentera resultatet för användaren. Detta kan göras på många olika sätt men vi gör det enkelt för oss själva och 
-skriver ut intervallet med högst sannorlikhet.
-För att skriva ut ett snyggt intervall behöver vi en mappning mellan vår output-array och ålderintervall. 
+Nu återstår alltså att presentera resultatet för användaren. Detta kan göras på många olika sätt men vi gör det enkelt för oss själva och 
+skriver ut intervallet med högst sannolikhet.
+För att skriva ut ett snyggt intervall behöver vi en mappning mellan index i vår output-array och ålderintervall. 
 Vi kan åstadkomma detta med en enkel lista av strängar:
 ```typescript
 const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53', '60-100'];
 ```
 Värdena är tagna från modellens dokumentationssida.
 
-Nu måste vi bara hitta indexet för det intervall med den högsta sannorlikheten och indexera vår `AGE_INTERVALS` med detta index.
+Nu måste vi bara hitta indexet för det intervall med den högsta sannolikheten och indexera vår `AGE_INTERVALS` med detta index.
 ```typescript
 const highest_probability_index = argmax(output as Float32Array);
 const age_interval = AGE_INTERVALS[highest_probability_index];
@@ -268,7 +299,7 @@ Om vi startar testservern igen (`npm start`) och klickar på "Estimate Age" knap
 - Nu laddas och deserialiseras modellen varje gång användaren trycker på "Estimate Age". Detta är inte nödvändigt, utan det bör göras direkt när sidan laddar.
 - På [https://github.com/onnx/models/tree/main](https://github.com/onnx/models/tree/main) finns en uppsjö av andra intressanta modeller i .onnx format som kan testas.
 - Med bibliotek som PyTorch eller Tensorflow kan du träna egna modeller och exportera till .onnx. Dessa modeller går utmärkt att använda på samma sätt som vi gjort i det här exemplet.
-- Man skulle kunna visualisera resultatet snyggare. Till exempel kan man presentera sannorlikheterna för olika intervall i en "bar chart".
+- Om man vill lösa ett liknande problem som det inte finns någon färdigtränad modell till, kan man använda en färdigtränad modell som basmodell och bygga en egen "top" som man tränar på egen data. Detta gör man för att inte behöva samla in lika mycket egen data för det specifika problemet. Det här konceptet är ett exempel på så kallad tranfer learning och används flitigt av många modeller. Som ett exempel kan man tänka sig att man behöver en modell för att analysera ansiktsuttryck. Man skulle då kunna använda den färdigtränade åldersestimeringsmodellen som basmodell och samla in egen data med ansiktsuttryck för att träna en topmodell som estimerar ansiktsuttryck. På det sättet slipper man samla in den extrema mängden data som annars krävs för att träna den här typen av stora modeller. 
 
 # Hela källkoden för `App.tsx`
 Här finns den fullständiga lösningen med all kod för `App.tsx`:
@@ -292,7 +323,7 @@ const remove_alpha = (array: Uint8ClampedArray) => {
 /* 
  * Convert from interleaved RGB to planar RGB.
  */
-const separate_channels = (array: Float32Array) => {
+const interleaved_to_planear = (array: Float32Array) => {
   const plane_size = array.length / 3;
   const result = new Float32Array(array.length);
   for (let i = 0; i < plane_size; i++) {
@@ -320,13 +351,18 @@ const argmax = (array: Float32Array) => {
 
 const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53', '60-100'];
 
+// Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
+const TRAINING_INPUT_DATA_MEAN = 120.0; 
+
 function App() {
   const input_image = useRef<HTMLImageElement>(null);
   const [preprocessed, set_preprocessed] = useState<Float32Array>();
   const [estimated_age, set_estimated_age] = useState<string>();
 
+
   const preprocess = () => {
     const canvas = document.createElement("canvas");
+
     const img_w = input_image.current!.width;
     const img_h = input_image.current!.height;
     canvas.width = 224;
@@ -336,12 +372,10 @@ function App() {
     ctx.drawImage(input_image.current!, 0, 0, img_w, img_h, 0, 0, 224, 224);
     const array = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     const without_alpha = remove_alpha(array);
-    const f32array = Float32Array.from(without_alpha, x => x - 120);
-    const channel_separated = separate_channels(f32array);
-
+    const f32array = Float32Array.from(without_alpha, x => x - TRAINING_INPUT_DATA_MEAN);
+    const channel_separated = interleaved_to_planear(f32array);
     set_preprocessed(channel_separated);
   }
-
 
   const estimate_age = async () => {
     const model = await InferenceSession.create('age_googlenet.onnx', { executionProviders: ['webgl'], graphOptimizationLevel: 'all' });
