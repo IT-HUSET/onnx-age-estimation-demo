@@ -211,9 +211,9 @@ I det här steget kommer vi att:
 
 ## Vad är en Tensor?
 ![tensors](media/tensors.png)
-Många maskininlärningsmodeller opererar på instanser av datatyper som kallas tensorer. 
-Ordet kommer från matematiken och är en generalisering av en sorts generalisering av en vektor.
-I praktiken, i AI/ML sammanhang, har det kommit att betyda en flerdimensionell array som är optimerad för matrismultiplikation som är vanligt förekommande i ML algoritmer.
+Många maskininlärningsmodeller opererar på datatyper som kallas tensorer.
+Tensorer kommer från början från fysiken och är en sorts generalisering av matematikens vektorer.
+I AI/ML sammanhang har det dock kommit att betyda en flerdimensionell array som är optimerad för matrismultiplikation, en operation som är vanligt förekommande i ML algoritmer.
 Ett exempel på en tvådimensionell tensor är en matris som då har de två dimensionerna: rader och kolumner.
 Vår RGB bild råkar också vara en tredimensionell tensor där de tre dimensionerna i vår tensor är: bildens höjd, bredd och antal kanaler.
 
