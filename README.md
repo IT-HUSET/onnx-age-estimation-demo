@@ -213,9 +213,9 @@ I det här steget kommer vi att:
 ![tensors](media/tensors.png)
 Många maskininlärningsmodeller opererar på datatyper som kallas tensorer.
 Tensorer kommer från början från fysiken och är en sorts generalisering av matematikens vektorer.
-I AI/ML sammanhang har det dock kommit att betyda en flerdimensionell array som är optimerad för matrismultiplikation, en operation som är vanligt förekommande i ML algoritmer.
+I AI/ML sammanhang har det dock kommit att betyda en flerdimensionell array som är optimerad för matrismultiplikation, en operation som är vanligt förekommande i ML-algoritmer.
 Ett exempel på en tvådimensionell tensor är en matris som då har de två dimensionerna: rader och kolumner.
-Vår RGB bild råkar också vara en tredimensionell tensor där de tre dimensionerna i vår tensor är: bildens höjd, bredd och antal kanaler.
+Vår RGB bild råkar också vara en tredimensionell tensor där de tre dimensionerna är: bildens höjd, bredd och antal kanaler.
 
 ## Inferens
 Vi vill göra åldersestimeringen när användaren trycker på "Estimate Age"-knappen.
@@ -225,7 +225,7 @@ const estimate_age = async () => {}
 ...
     <button id="estimate_age" type="button" onClick={estimate_age}> Estimate Age </button>
 ```
-Vi markerar funktionen med `async` för att kunna använda `await` för att vänta på deserialiseringen och körningen av modellen med onnxruntime som är asynkrona anrop.
+Vi markerar funktionen med `async` så att vi kan använda `await` för att vänta på deserialiseringen och körningen av modellen med onnxruntime som är asynkrona anrop.
 
 Det första vi vill göra i `estimate_age` är att deserialisera modellen. Detta gör vi med ett anrop till `InferenceSession.create(..)`:
 ```typescript 
