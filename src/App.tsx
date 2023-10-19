@@ -43,7 +43,7 @@ const argmax = (array: Float32Array) => {
   return max_index;
 }
 
-const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53', '60-100'];
+const AGE_INTERVALS = ['0-3', '4-7', '8-14', '15-24', '25-37', '38-47', '48-59', '60-100'];
 
 // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
 const TRAINING_INPUT_DATA_MEAN = 120.0; 

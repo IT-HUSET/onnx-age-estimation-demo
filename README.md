@@ -282,9 +282,9 @@ skriver ut intervallet med högst sannolikhet.
 För att skriva ut ett snyggt intervall behöver vi en mappning mellan index i vår output-array och ålderintervall. 
 Vi kan åstadkomma detta med en enkel lista av strängar:
 ```typescript
-const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53', '60-100'];
+const AGE_INTERVALS = ['0-3', '4-7', '8-14', '15-24', '25-37', '38-47', '48-59', '60-100'];
 ```
-Intervallerna är tagna från modellens dokumentationssida som innehåller [exempelkod i python](https://github.com/onnx/models/blob/main/vision/body_analysis/age_gender/levi_googlenet.py) för hur modellen kan användas.
+Intervallerna här är tagna från modellens dokumentation. 
 
 Nu måste vi bara hitta indexet för det intervall med den högsta sannolikheten och indexera vår `AGE_INTERVALS` med detta index.
 ```typescript
@@ -396,7 +396,7 @@ const argmax = (array: Float32Array) => {
   return max_index;
 }
 
-const AGE_INTERVALS = ['0-2', '4-6', '8-12', '15-20', '25-32', '38-43', '48-53', '60-100'];
+const AGE_INTERVALS = ['0-3', '4-7', '8-14', '15-24', '25-37', '38-47', '48-59', '60-100'];
 
 // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
 const TRAINING_INPUT_DATA_MEAN = 120.0; 
