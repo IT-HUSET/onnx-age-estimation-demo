@@ -23,7 +23,7 @@ Det framgår lite tydligare i bilden nedan att förprocesseringen är den störs
 När vi är klara med förprocesseringen deserialiserar vi modellen, anropar den med vår indata och presenterar resultatet.
 
 # Förberedelser
-1. Installera npm
+1. Installera npm [https://nodejs.org/en/download](https://nodejs.org/en/download)
 2. Kör `npm install -g npx` för att installera npx
 3. Hitta och ladda ner en testbild på en person du vill åldersbestämma.
 4. Hämta den färdigtränade modellen från [https://github.com/onnx/models/blob/main/vision/body_analysis/age_gender/models/age_googlenet.onnx](https://github.com/onnx/models/blob/main/vision/body_analysis/age_gender/models/age_googlenet.onnx)
