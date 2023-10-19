@@ -101,6 +101,8 @@ const input_image = useRef<HTMLImageElement>(null);
 <!-- ![RGBA-illustration](media/RGBA-illustration.png) -->
 
 Modellen som vi kommer att köra förväntar sig ett visst format på indatan för att generera korrekta estimeringar.
+Detta beror på att modellen är tränad med ett specifikt dataset (om man är intresserad kan man utforska det datasetet [här](https://datasets.activeloop.ai/docs/ml/datasets/adience-dataset/).
+
 Mer specifikt måste vi:
 1. Skala om bilden till 224x224 pixlar.
 2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
