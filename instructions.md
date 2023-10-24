@@ -36,3 +36,23 @@ I det här steget ska du:
 - Installera biblioteket `onnxruntime-web` till projektet.
 - Skapa ett enkelt UI som visar bilden som du har laddat ned och en knapp med texten "Estimate Age".
 - Skapa en så kallad react ref-hook som refererar till img elementet så att vi senare kan plocka ut pixeldatan från bilden.
+
+## Förprocessering av indatabilden ([lösningsförslag](README.md#förprocessering-av-indata-bilden))
+Nu måste vi plocka ut pixeldatan från img-taggen och bearbeta den så att den matchar formatet som modellen tränades på.
+I slutet av det här steget vill vi ha en 224x224 planar RGB bild i float32 format som vi kan skicka till vår modell.
+Vi kommer alltså att behöva konvertera från interleaved RGBA (formatet som vi får av browsern) och planar RGB.
+Skillnaden mellan interleaved formatet och planar formatet visualiseras i nedanstående bild för en 2x2 pixlar bild.
+![interleaved-vs-planar](media/interleaved-vs-planar.png)
+
+I det här steget måste vi också subtrahera en normaliseringskonstant från alla pixlar i bilden. 
+Det gör vi för att matcha hur träningsdatan har förprocesserats. Information om detta hittas i [dokumentationen](https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender) för modellen.
+
+## Använda modellen (inferens) ([lösningsförslag](README.md#använda-modellen-inferens))
+Nu har vi äntligen kommit så långt att vi kan anropa modellen med vår bild. Detta steg kallas för inferens och går ut på att skicka vår förprocesserade data till modellen och få ut ett resultat.
+
+I det här steget kommer vi att:
+1. Deserialisera en färdigtränad modell från vår age_googlenet.onnx fil som innehåller den färdigtränade modellens vikter.
+2. Skapa en Tensor från vår indata med rätt dimensioner.
+3. Applicera modellen på den skapade tensorn.
+
+Allt detta görs med `onnxruntime-web` biblioteket via `InferenceSession` och `Tensor` objekten.
