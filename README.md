@@ -105,7 +105,7 @@ Detta beror på att modellen är tränad med ett specifikt dataset (om man är i
 
 Mer specifikt måste vi:
 1. Skala om bilden till 224x224 pixlar.
-2. Plocka ut bilddatan som en array av pixlar (av typen Uint8ClampedArray).
+2. Plocka ut bilddatan som en array av pixlar av typen Uint8ClampedArray.
 3. Ta bort alpha kanalen som representerar pixlarnas transparens.
 4. Konvertera bilden till en array av flyttal (Float32Array).
 5. Konvertera bilden från  "interleaved"-rgb format till "planar"-rgb format. I interleaved formatet är pixeldatan strukturerad så att var tredje element tillhör samma kanal. En 2x2 bild har alltså den underliggande datastrukturen
@@ -121,7 +121,39 @@ Slutresultatet är alltså att alla kanaler lagras för sig i röd-grön-blå or
 Notera att vi ignorerar alphakanalen som innehåller information om hur genomskinlig pixeln är.
 I vårt fall bryr vi oss inte om transparensen och modellen som vi använder förväntar sig endast RGB kanaler, ingen alphakanal.
 
-Vi gör allt detta i en `preprocess` funktion som körs när bilden laddas:
+Vi börjar med två hjälpfunktioner för att utföra steg 1 och 5: `remove_alpha()` och `interleaved_to_planear()`. 
+Detta gör vi som globala funktioner (utanför `App()`):
+```typescript
+/*
+ * Remove the alpha channel from an interleaved RGBA imagedata array.
+ */
+const remove_alpha = (array: Uint8ClampedArray) => {
+  const result = new Uint8ClampedArray(array.length / 4 * 3);
+  for (let i = 0; i < array.length; i += 4) {
+    result[i / 4 * 3 + 0] = array[i + 0]; // R
+    result[i / 4 * 3 + 1] = array[i + 1]; // G
+    result[i / 4 * 3 + 2] = array[i + 2]; // B
+  }
+  return result;
+}
+
+/* 
+ * Convert from interleaved RGB to planar RGB.
+ */
+const interleaved_to_planear = (array: Float32Array) => {
+  const plane_size = array.length / 3;
+  const result = new Float32Array(array.length);
+  for (let i = 0; i < plane_size; i++) {
+    result[i + plane_size * 0] = array[i * 3 + 0];
+    result[i + plane_size * 1] = array[i * 3 + 1];
+    result[i + plane_size * 2] = array[i * 3 + 2];
+  }
+  return result;
+}
+```
+Båda funktionerna itererar helt enkelt igenom alla pixlar i arrayen och sparar i en ny array med den önskade strukturen.
+
+Vi kan sedan knyta ihop hela förprocesseringen i en `preprocess` funktion som använder de två hjälpfunktionerna.
 ```typescript
   // Från modellens dokumentation (https://github.com/onnx/models/tree/main/vision/body_analysis/age_gender)
   const TRAINING_INPUT_DATA_MEAN = 120.0; 
@@ -165,43 +197,12 @@ Sedan använder vi funktionen `remove_alpha()` för att skapa en ny array med sa
 
 Därefter måste vi konvertera datan från en array av typen `Uint8ClampedArray` som är en array med 8-bitarselement till en `Float32Array` med flyttal som modellen accepterar. I samma veva subtraherar vi `120.0` från varje pixel för att matcha träningsdatan.
 
-Vi konverterar från interleaved till planar med `interleaved_to_planear()` funktionen som vi implementerar nedan. 
+Vi konverterar från interleaved till planar med `interleaved_to_planear()`. 
 
 Sist men inte minst sparar vi resultatet i komponentens state via `set_preprocessed()`.
 
 På sista raden modifierar vi img-taggen så att `preprocess` körs när bilden laddas.
 
-Vi måste nu implementera funktionerna `remove_alpha()` och `interleaved_to_planear()`. 
-Detta gör vi som globala funktioner (utanför `App()`):
-```typescript
-/*
- * Remove the alpha channel from an interleaved RGBA imagedata array.
- */
-const remove_alpha = (array: Uint8ClampedArray) => {
-  const result = new Uint8ClampedArray(array.length / 4 * 3);
-  for (let i = 0; i < array.length; i += 4) {
-    result[i / 4 * 3 + 0] = array[i + 0]; // R
-    result[i / 4 * 3 + 1] = array[i + 1]; // G
-    result[i / 4 * 3 + 2] = array[i + 2]; // B
-  }
-  return result;
-}
-
-/* 
- * Convert from interleaved RGB to planar RGB.
- */
-const interleaved_to_planear = (array: Float32Array) => {
-  const plane_size = array.length / 3;
-  const result = new Float32Array(array.length);
-  for (let i = 0; i < plane_size; i++) {
-    result[i + plane_size * 0] = array[i * 3 + 0];
-    result[i + plane_size * 1] = array[i * 3 + 1];
-    result[i + plane_size * 2] = array[i * 3 + 2];
-  }
-  return result;
-}
-```
-Båda funktionerna itererar helt enkelt igenom alla pixlar i arrayen och sparar i en ny array med den önskade strukturen.
 
 # Använda modellen (Inferens)
 Nu har vi äntligen kommit så långt att vi kan anropa modellen med vår bild. Detta steg kallas för inferens och går ut på att skicka vår förprocesserade data till modellen och få ut ett resultat.
@@ -265,7 +266,7 @@ Då kommer modellen att returnera en lista med sannolikheter för de olika inter
 
 Detta är en vanligt mönster med maskininlärningsmodeller. 
 Istället för att direkt returnera ett svar får man ut sannolikheter eller *scores* för de olika *möjliga* svaren.
-Det är viktigt att poängtera att även om man ofta benämner dessa *scores* som en sannolikheter, så är det egentligen bara modellens *estimering* av den korrekta sannolikheten. Om modellen är tränad på en annan typ av data, eller har inbyggda bias så kommer sannolikheterna inte att representera något rimligt.
+Det är viktigt att poängtera att även om man ofta benämner dessa *scores* som sannolikheter, så är det egentligen bara modellens *estimering* av den korrekta sannolikheten. Om modellen är tränad på en annan typ av data, eller har inbyggda bias så kommer sannolikheterna inte att representera något rimligt.
 Som exempel kan vi tänka oss att vi skickar en helt annan typ av bild till vår modell, till exempel en helt blank bild. Modellen kommer fortfarande att svara med sannolikheter för de 8 åldersintervallen den är tränad på, trots att det inte betyder någonting för en blank bild.
 
 Hur vi väljer att presentera resultatet är upp till oss.
