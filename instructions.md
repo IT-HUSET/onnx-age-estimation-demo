@@ -119,5 +119,26 @@ samtidigt som man vill utnyttja den mer generella kunskapen från de undre lagre
 
 ![transfer-learning](media/transfer-learning.png)
 
+# ADR - Architecture Descicion Record
+Vad är då fördelarna och nackdelarna med att köra en maskininlärningsmodell direkt på klienten?
+Vi beskriver fördelarna och nackdelarna i en ADR för ett exempelscenario:
+## Context
+Vi har i uppdrag att bygga en applikation som åldersbestämmer porträttbilder i webbläsaren åt användare.
+För att göra detta har vi en färdigtränad maskininlärningsmodell som tar porträttbilder som indata.
+Vi kan antingen utföra estimeringen i en backend-tjänst via ett HTTP anrop från browsern, eller så kan vi köra estimeringsmodellen direkt i browsern.
+
+## Decision
+Vi har valt att köra modellen direkt i browsern via ramverket onnxruntime-web.
+
+## Consequences
+#### Fördelar
+ - I och med att modellen körs direkt i webbläsaren behöver inte indatabilden skickas över nätverket till våra servrar. Detta gör att vi inte behöver oroa oss över integritetsproblematiken med att hantera användarbilder.
+ - Vi behöver inte förvalta och betala för en backend-tjänst som kör maskinilärningsmodellen eftersom beräkningarna sker i användarens webbläsare.
+
+#### Nackdelar
+ - Användaren måste ladda ned själva modellen innan estimeringen kan göras. Modellen är 23 MB vilket gör att vi kanske inte får samma responstid på den första estimeringen som vi hade fått om vi bara behövde skicka bilden till en backend-tjänst.
+ - Gamla klienter med mindre beräkningskraft kommer att ta längre tid på sig att utföra estimeringen eftersom den endast kan accelereras om webbläsaren stödjer `webgl`.
+
+
 # Slutsats
 ![what-did-we-learn](media/what-did-we-learn.png)
